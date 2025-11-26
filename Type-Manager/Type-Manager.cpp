@@ -143,7 +143,6 @@ int calc_align_struct (const atomic_struct& at_struct){
     return align_accumulated;
 }
 
-
 int calc_size_union (const atomic_union& at_union) {
     int size_accumulated = 0;
     for (const auto& field_name : at_union.fields) {
@@ -171,53 +170,153 @@ int calc_size_struct (const atomic_struct& at_struct) {
     }
     return size_accumulated;
 }
-// void print_struct_wt_packing(const atomic_struct& at_struct, int word_size = 4){}
 
-// void print_struct_wt_packing_aux(const atomic_struct& at_struct, vector<int> mem_arr = {}, int mem_index_ptr = 0, int bytes_lost = 0, int bytes_used = 0, int bytes_allocated = 0, int word_size) {
+vector<int> print_struct_wt_packing_aux(const atomic_struct& at_struct, vector<int>& mem_arr, int& mem_index_ptr, vector<int>& bytes) {
+
+    for (const auto& field_name : at_struct.fields) {
+        if (types_arr[field_name].kind == ATOMIC){
+            atomic type = get<atomic>(types_arr[field_name].at);
+
+            if (mem_index_ptr % type.align == 0) {
+                int i = 0;
+                while (i < type.size){
+                    mem_arr.push_back(1);
+                    bytes[0]++;
+                    mem_index_ptr++;
+                    i++;
+                }
+            } else {
+                int i = 0;
+                while (mem_index_ptr % type.align != 0){
+                    mem_arr.push_back(0);
+                    bytes[1]++;
+                    mem_index_ptr++;
+                }
+                i = 0;
+                while (i < type.size){
+                    mem_arr.push_back(1);
+                    bytes[0]++;
+                    mem_index_ptr++;
+                    i++;
+                }
+            }
+        } 
+        else if (types_arr[field_name].kind == STRUCT) {
+            atomic_struct type = get<atomic_struct>(types_arr[field_name].at);
+            bytes = print_struct_wt_packing_aux(type, mem_arr, mem_index_ptr, bytes);
+        } else if (types_arr[field_name].kind == UNION) {
+            atomic_union type = get<atomic_union>(types_arr[field_name].at);
+            if (mem_index_ptr % type.align == 0) {
+                int i = 0;
+                while (i < type.size){
+                    mem_arr.push_back(1);
+                    bytes[0]++;
+                    mem_index_ptr++;
+                    i++;
+                }
+            } else {
+                int i = 0;
+                while (mem_index_ptr % type.align != 0){
+                    mem_arr.push_back(0);
+                    bytes[1]++;
+                    mem_index_ptr++;
+                }
+                i = 0;
+                while (i < type.size){
+                    mem_arr.push_back(1);
+                    bytes[0]++;
+                    mem_index_ptr++;
+                    i++;
+                }
+            }
+        }
+    }
+    bytes[2] = bytes[0] + bytes[1];
+
+    return bytes;
 
 //     for (const auto& field_name : at_struct.fields) {
-//         if (types_arr[field_name].kind == ATOMIC){
+//         cout << "Processing field: " << field_name << endl;
+//         atomic obj = atomic_types[field_name];
+//         cout << "Field size: " << obj.size << endl;
+//         cout << "Apuntando a: " << mem_index_ptr << endl;
+//         if (mem_index_ptr % obj.align == 0) {
+//             cout << "Eureka. Aqui es alineable" << endl;
+            
+//             total_bytes_used += obj.size;
 
-//         } else if (types_arr[field_name].kind == STRUCT) {
+//             mem_index_ptr += obj.size;
+//             cout << "BYTES USADOS HASTA AHORA: " << total_bytes_used << endl;
+            
+//         } else {
+//             while (mem_index_ptr % obj.align != 0) {
+//                 mem_index_ptr++;
+//                 total_bytes_lost++;
+//             }
+//             cout << "Podemos alinear aqui: " << mem_index_ptr << endl;
+//             total_bytes_used += obj.size;
 
-//         } else if (types_arr[field_name].kind == UNION) {
-
+//             mem_index_ptr += obj.size;
+//             cout << "Quedamos apuntando a: " << mem_index_ptr << endl;
+//             cout << "BYTES USADOS HASTA AHORA: " << total_bytes_used << endl;
+//             cout << "BYTES PERDIDOS HASTA AHORA: " << total_bytes_lost << endl;
 //         }
 //     }
+//     total_bytes_allocated = total_bytes_used + total_bytes_lost;
+//     cout << "Struct Type: " << at_struct.name << ", Bytes allocated: " << total_bytes_allocated << " bytes, Bytes lost: " << total_bytes_lost <<endl;
+}
 
-// //     for (const auto& field_name : at_struct.fields) {
-// //         cout << "Processing field: " << field_name << endl;
-// //         atomic obj = atomic_types[field_name];
-// //         cout << "Field size: " << obj.size << endl;
-// //         cout << "Apuntando a: " << mem_index_ptr << endl;
-// //         if (mem_index_ptr % obj.align == 0) {
-// //             cout << "Eureka. Aqui es alineable" << endl;
-            
-// //             total_bytes_used += obj.size;
+void print_struct_wt_packing(const atomic_struct& at_struct, int word_size = 4){
+    vector<int> mem_arr = {};
+    int mem_index_ptr = 0;
+    vector<int> bytes_init = {0, 0, 0};
+    vector<int> bytes = print_struct_wt_packing_aux(at_struct, mem_arr, mem_index_ptr, bytes_init);
 
-// //             mem_index_ptr += obj.size;
-// //             cout << "BYTES USADOS HASTA AHORA: " << total_bytes_used << endl;
-            
-// //         } else {
-// //             while (mem_index_ptr % obj.align != 0) {
-// //                 mem_index_ptr++;
-// //                 total_bytes_lost++;
-// //             }
-// //             cout << "Podemos alinear aqui: " << mem_index_ptr << endl;
-// //             total_bytes_used += obj.size;
+    cout << "Memory Layout Diagram (each '1' represents a byte):";
+    for (int i = 0; i < mem_arr.size(); i++) {
+        if (i % word_size == 0) {
+            cout << "\n" << i << " | " << mem_arr[i] << " ";
+        } else if (i + 1 % word_size == 0) {
+            cout << mem_arr[i] <<" |" << endl;
+        } else {
+            cout << mem_arr[i] <<" ";
+        }
+    }
 
-// //             mem_index_ptr += obj.size;
-// //             cout << "Quedamos apuntando a: " << mem_index_ptr << endl;
-// //             cout << "BYTES USADOS HASTA AHORA: " << total_bytes_used << endl;
-// //             cout << "BYTES PERDIDOS HASTA AHORA: " << total_bytes_lost << endl;
-// //         }
-// //     }
-// //     total_bytes_allocated = total_bytes_used + total_bytes_lost;
-// //     cout << "Struct Type: " << at_struct.name << ", Bytes allocated: " << total_bytes_allocated << " bytes, Bytes lost: " << total_bytes_lost <<endl;
-// }
+    cout << endl;
+    cout << "Struct Type: " << at_struct.name << ", Bytes allocated: " << bytes[2] << " bytes, Bytes lost: " << bytes[1] <<endl;
+}
+
+void print_union (const atomic_union& at, int word_size = 4){
+    int num_of_cells = ceil((double)at.size / word_size) * word_size;
+    if (num_of_cells == 0){
+        num_of_cells = word_size;
+    }
+    vector<int> mem_arr(num_of_cells, 0);
+
+    for (int i = 0; i < at.size; i++) {
+        mem_arr[i] = 1;
+    }
+
+    cout << "Memory Layout Diagram (each '1' represents a byte):";
+    for (int i = 0; i < mem_arr.size(); i++) {
+        if (i % word_size == 0) {
+            cout << "\n" << i << " | " << mem_arr[i] << " ";
+        } else if (i + 1 % word_size == 0) {
+            cout << mem_arr[i] <<" |" << endl;
+        } else {
+            cout << mem_arr[i] <<" ";
+        }
+    }
+
+    cout << endl;
+
+    cout << "Union Type: " << at.name << "\nSize: " << at.size << " bytes\nAlignment: " << at.align << " bytes"<<endl;
+
+}
 
 void print_atomic(const atomic& at, int word_size = 4) {
-    int num_of_cells = ceil(at.size / word_size) * word_size;
+    int num_of_cells = ceil((double) at.size / word_size) * word_size;
 
     if (num_of_cells == 0){
         num_of_cells = word_size;
@@ -498,20 +597,17 @@ int main() {
                             print_atomic(a, word_size);
                             break;
                         }
+                        case STRUCT: {
+                            const atomic_struct& s = get<atomic_struct>(type.at);
+                            print_struct_wt_packing(s, word_size);
+                            break;
+                        }
 
-                        // case STRUCT: {
-                        //     const atomic_struct& s = get<atomic_struct>(type.at);
-                        //     cout << "Struct Type: " << s.name << endl;
-                        //     // print_struct_wt_packing(s, 0);
-                        //     break;
-                        // }
-
-                        // case UNION: {
-                        //     const atomic_union& u = get<atomic_union>(type.at);
-                        //     cout << "Union Type: " << u.name << endl;
-                        //     // print_union(u, 0);
-                        //     break;
-                        // }
+                        case UNION: {
+                            const atomic_union& u = get<atomic_union>(type.at);
+                            print_union(u, word_size);
+                            break;
+                        }
                     }
                 }
                 catch(const exception& e){
