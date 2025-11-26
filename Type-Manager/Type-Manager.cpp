@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <variant>
 #include <sstream>
+#include <cmath>
 
 using namespace std;
 
@@ -136,18 +137,34 @@ map<string, atomic_type> types_arr = {
 //     cout << "Struct Type: " << at_struct.name << ", Bytes allocated: " << total_bytes_allocated << " bytes, Bytes lost: " << total_bytes_lost <<endl;
 // }
 
-void print_atomic_wt_packing(const atomic& at, int word_size) {
-    int lost_bytes;
+void print_atomic(const atomic& at, int mem_index_ptr = 0, int word_size = 4) {
+    int num_of_cells = ceil(at.size / word_size) * word_size;
 
-    if (at.size < word_size && at.size > 0) {
-        lost_bytes = word_size - at.size;
-    } else if (at.size >= word_size && at.size > 0 && at.size % word_size != 0) {
-        lost_bytes = word_size - (at.size % word_size);
-    } else if (at.size >= word_size && at.size > 0 && at.size % word_size == 0) {
-        lost_bytes = 0;
+    if (num_of_cells == 0){
+        num_of_cells = word_size;
     }
 
-    cout << "Atomic Type: " << at.name << ", Size: " << at.size << " bytes, Alignment: " << at.align << " bytes, Lost bytes: " << lost_bytes <<endl;
+    vector<int> mem_arr(num_of_cells, 0);
+
+    for (int i = 0; i < at.size; i++) {
+        mem_arr[i] = 1;
+    }
+
+    cout << "Memory Layout Diagram (each '1' represents a byte):";
+    for (int i = 0; i < mem_arr.size(); i++) {
+        if (i % word_size == 0) {
+            cout << "\n" << i << " | " << mem_arr[i] << " ";
+        } else if (i + 1 % word_size == 0) {
+            cout << mem_arr[i] <<" |" << endl;
+        } else {
+            cout << mem_arr[i] <<" ";
+        }
+    }
+
+    cout << endl;
+
+    cout << "Atomic Type: " << at.name << "\nSize: " << at.size << " bytes\nAlignment: " << at.align << " bytes"<<endl;
+
 }
 
 void push_atomic(map<string, atomic_type>& arr, const string& name, int size, int align){
@@ -162,6 +179,13 @@ void push_atomic(map<string, atomic_type>& arr, const string& name, int size, in
 }
 
 void push_struct(map<string, atomic_type>& arr, const string& name, vector<string> fields){
+
+    for (const auto& f : fields) {
+        if (f == name) {
+            throw runtime_error("Error: Recursive declaration of type '" + name + "'");
+        }
+    }
+
     atomic_type at;
     at.kind = STRUCT;
     at.at = atomic_struct{name, fields};
@@ -169,6 +193,11 @@ void push_struct(map<string, atomic_type>& arr, const string& name, vector<strin
 }
 
 void push_union(map<string, atomic_type>& arr, const string& name, vector<string> fields){
+    for (const auto& f : fields) {
+        if (f == name) {
+            throw runtime_error("Error: Recursive declaration of type '" + name + "'");
+        }
+    }
     atomic_type at;
     at.kind = UNION;
     at.at = atomic_union{name, fields};
@@ -291,11 +320,10 @@ int main() {
                     
                     cout << "ATOMIC type " << field1 << " created successfully!"<< endl;
                     
-                    continue;
                 } catch (exception& e) {
                     cout << e.what() << endl;
-                    continue;
                 }
+                break;
             }
             case 2:{
                 try {
@@ -323,11 +351,10 @@ int main() {
 
                     cout << "STRUCT type " << struct_name << " created successfully!"<< endl;
 
-                    continue;
                 } catch (exception& e) {
                     cout << e.what() << endl;
-                    continue;
                 }
+                break;
             }
             case 3: {
                 try {
@@ -354,19 +381,59 @@ int main() {
 
                     cout << "UNION type " << struct_name << " created successfully!"<< endl;
 
-                    continue;
                 } catch (exception& e) {
                     cout << e.what() << endl;
-                    continue;
                 }
+                break;
             }
-            case 4:
+            case 4: {
+                try
+                {
+                    if (tokens.size() != 2) {
+                        throw runtime_error("Error: Wrong number of arguments for DESCRIBIR command.\nUsage: DESCRIBIR <nombre>.");
+                    }
+
+                    string type_name = tokens[1];
+
+                    if (types_arr.find(type_name) == types_arr.end()) {
+                        throw runtime_error("Error: Type '" + type_name + "' not found in type table.");
+                    }
+
+                    atomic_type type = types_arr[type_name];
+
+                    switch (type.kind) {
+                        case ATOMIC: {
+                            const atomic& a = get<atomic>(type.at);
+                            print_atomic(a, 0, word_size);
+                            break;
+                        }
+
+                        // case STRUCT: {
+                        //     const atomic_struct& s = get<atomic_struct>(type.at);
+                        //     cout << "Struct Type: " << s.name << endl;
+                        //     // print_struct_wt_packing(s, 0);
+                        //     break;
+                        // }
+
+                        // case UNION: {
+                        //     const atomic_union& u = get<atomic_union>(type.at);
+                        //     cout << "Union Type: " << u.name << endl;
+                        //     // print_union(u, 0);
+                        //     break;
+                        // }
+                    }
+                }
+                catch(const exception& e){
+                    cout << e.what() << '\n';
+                }
+                break;
+            }
             case 5:
                 cout << "Saliendo del programa." << endl;
                 return 0;
             case 6:
                 print_types(types_arr);
-                continue;
+                break;
             default:
                 cout << "Error: unknown command." << endl;
                 cout << "Available commands: \nATOMICO, STRUCT, UNION, DESCRIBIR, SALIR." << endl;
