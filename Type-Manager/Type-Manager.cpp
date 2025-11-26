@@ -7,6 +7,7 @@
 #include <variant>
 #include <sstream>
 #include <cmath>
+#include <numeric>
 
 using namespace std;
 
@@ -19,11 +20,15 @@ struct atomic {
 struct atomic_struct{
     string name;
     vector<string> fields;
+    int size = 0;
+    int align = 0;
 };
 
 struct atomic_union{
     string name;
     vector<string> fields;
+    int size = 0;
+    int align = 0;
 };
 
 enum AtomicKind { ATOMIC, STRUCT, UNION };
@@ -41,9 +46,10 @@ map<string, atomic_type> types_arr = {
     { "float",  { ATOMIC, atomic{"float",  4, 4} }},
     { "double", { ATOMIC, atomic{"double", 8, 8} }},
     { "bool",   { ATOMIC, atomic{"bool",   1, 2} }},
-    {"MyStruct1", {STRUCT, atomic_struct{"MyStruct1", {"int", "char", "char", "int", "double", "bool"}}}},
-    {"MyStruct2", {STRUCT, atomic_struct{"MyStruct2", {"short", "float", "char", "long"}}}}
-
+    {"MyStruct1", {STRUCT, atomic_struct{"MyStruct1", {"int", "char", "char", "int", "double", "bool"}, 19, 4}}},
+    {"MyStruct2", {STRUCT, atomic_struct{"MyStruct2", {"short", "float", "char", "long"}, 15, 2}}},
+    {"Union1", {UNION, atomic_union{"MyUnion1", {"double", "bool", "int"}, 8, 8}}},
+    {"Union2", {UNION, atomic_union{"MyUnion2", {"Union1", "MyStruct2"}, 15, 8}}}
 };
 
 // vector<string> sort_struct_by_alignment(atomic_struct& at_struct) {
@@ -80,7 +86,9 @@ map<string, atomic_type> types_arr = {
 
 // }
 
-// void print_struct_w_packing(const atomic_struct& at_struct, int word_size) {
+// void print_struct_wt_packing(const atomic_struct& at_struct, vector<int> mem_arr = {}, int mem_index_ptr = 0, int word_size = 4) {
+
+
 // int total_bytes_lost = 0;
 //     int total_bytes_used = 0;
 //     int total_bytes_allocated = 0;
@@ -101,43 +109,114 @@ map<string, atomic_type> types_arr = {
 //     cout << "Struct Type: " << at_struct.name << ", Bytes allocated: " << total_bytes_allocated << " bytes, Bytes lost: " << total_bytes_lost <<endl;
 // }
 
-// void print_struct_wt_packing(const atomic_struct& at_struct, int mem_index_ptr = 0) {
-//     int total_bytes_lost = 0;
-//     int total_bytes_used = 0;
-//     int total_bytes_allocated = 0;
+//DECLARACIONES
+int calc_size_union (const atomic_union& at_union);
+int calc_size_struct (const atomic_struct& at_struct);
+int calc_align_union (const atomic_union& at_union);
+int calc_align_struct (const atomic_struct& at_struct);
+//DECLARACIONES
+
+int calc_align_union (const atomic_union& at_union){
+    int align_accumulated = 1;
+    for (const auto& field_name : at_union.fields) {
+        if (types_arr[field_name].kind == ATOMIC){
+            align_accumulated = lcm(align_accumulated, get<atomic>(types_arr[field_name].at).align);
+        } else if (types_arr[field_name].kind == STRUCT) {
+            align_accumulated = lcm(align_accumulated, get<atomic_struct>(types_arr[field_name].at).align);
+        } else if (types_arr[field_name].kind == UNION) {
+            align_accumulated = lcm(align_accumulated, get<atomic_union>(types_arr[field_name].at).align);
+        }
+    }
+    return align_accumulated;
+}
+
+int calc_align_struct (const atomic_struct& at_struct){
+    int align_accumulated = 0;
+    auto first_field_type = types_arr[at_struct.fields[0]];
+    if (first_field_type.kind == ATOMIC){
+        align_accumulated = get<atomic>(first_field_type.at).align;
+    } else if (first_field_type.kind == STRUCT) {
+        align_accumulated = get<atomic_struct>(first_field_type.at).align;
+    } else if (first_field_type.kind == UNION) {
+        align_accumulated = get<atomic_union>(first_field_type.at).align;
+    }
+    return align_accumulated;
+}
+
+
+int calc_size_union (const atomic_union& at_union) {
+    int size_accumulated = 0;
+    for (const auto& field_name : at_union.fields) {
+        if (types_arr[field_name].kind == ATOMIC){
+            size_accumulated = max(size_accumulated, get<atomic>(types_arr[field_name].at).size);
+        } else if (types_arr[field_name].kind == STRUCT) {
+            size_accumulated = max(size_accumulated, get<atomic_struct>(types_arr[field_name].at).size);
+        } else if (types_arr[field_name].kind == UNION) {
+            size_accumulated = max(size_accumulated, get<atomic_union>(types_arr[field_name].at).size);
+        }
+    }
+    return size_accumulated;
+}
+
+int calc_size_struct (const atomic_struct& at_struct) {
+    int size_accumulated = 0;
+    for (const auto& field_name : at_struct.fields) {
+        if (types_arr[field_name].kind == ATOMIC){
+            size_accumulated += get<atomic>(types_arr[field_name].at).size;
+        } else if (types_arr[field_name].kind == STRUCT) {
+            size_accumulated += get<atomic_struct>(types_arr[field_name].at).size;
+        } else if (types_arr[field_name].kind == UNION) {
+            size_accumulated += get<atomic_union>(types_arr[field_name].at).size;
+        }
+    }
+    return size_accumulated;
+}
+// void print_struct_wt_packing(const atomic_struct& at_struct, int word_size = 4){}
+
+// void print_struct_wt_packing_aux(const atomic_struct& at_struct, vector<int> mem_arr = {}, int mem_index_ptr = 0, int bytes_lost = 0, int bytes_used = 0, int bytes_allocated = 0, int word_size) {
 
 //     for (const auto& field_name : at_struct.fields) {
-//         cout << "Processing field: " << field_name << endl;
-//         atomic obj = atomic_types[field_name];
-//         cout << "Field size: " << obj.size << endl;
-//         cout << "Apuntando a: " << mem_index_ptr << endl;
-//         if (mem_index_ptr % obj.align == 0) {
-//             cout << "Eureka. Aqui es alineable" << endl;
-            
-//             total_bytes_used += obj.size;
+//         if (types_arr[field_name].kind == ATOMIC){
 
-//             mem_index_ptr += obj.size;
-//             cout << "BYTES USADOS HASTA AHORA: " << total_bytes_used << endl;
-            
-//         } else {
-//             while (mem_index_ptr % obj.align != 0) {
-//                 mem_index_ptr++;
-//                 total_bytes_lost++;
-//             }
-//             cout << "Podemos alinear aqui: " << mem_index_ptr << endl;
-//             total_bytes_used += obj.size;
+//         } else if (types_arr[field_name].kind == STRUCT) {
 
-//             mem_index_ptr += obj.size;
-//             cout << "Quedamos apuntando a: " << mem_index_ptr << endl;
-//             cout << "BYTES USADOS HASTA AHORA: " << total_bytes_used << endl;
-//             cout << "BYTES PERDIDOS HASTA AHORA: " << total_bytes_lost << endl;
+//         } else if (types_arr[field_name].kind == UNION) {
+
 //         }
 //     }
-//     total_bytes_allocated = total_bytes_used + total_bytes_lost;
-//     cout << "Struct Type: " << at_struct.name << ", Bytes allocated: " << total_bytes_allocated << " bytes, Bytes lost: " << total_bytes_lost <<endl;
+
+// //     for (const auto& field_name : at_struct.fields) {
+// //         cout << "Processing field: " << field_name << endl;
+// //         atomic obj = atomic_types[field_name];
+// //         cout << "Field size: " << obj.size << endl;
+// //         cout << "Apuntando a: " << mem_index_ptr << endl;
+// //         if (mem_index_ptr % obj.align == 0) {
+// //             cout << "Eureka. Aqui es alineable" << endl;
+            
+// //             total_bytes_used += obj.size;
+
+// //             mem_index_ptr += obj.size;
+// //             cout << "BYTES USADOS HASTA AHORA: " << total_bytes_used << endl;
+            
+// //         } else {
+// //             while (mem_index_ptr % obj.align != 0) {
+// //                 mem_index_ptr++;
+// //                 total_bytes_lost++;
+// //             }
+// //             cout << "Podemos alinear aqui: " << mem_index_ptr << endl;
+// //             total_bytes_used += obj.size;
+
+// //             mem_index_ptr += obj.size;
+// //             cout << "Quedamos apuntando a: " << mem_index_ptr << endl;
+// //             cout << "BYTES USADOS HASTA AHORA: " << total_bytes_used << endl;
+// //             cout << "BYTES PERDIDOS HASTA AHORA: " << total_bytes_lost << endl;
+// //         }
+// //     }
+// //     total_bytes_allocated = total_bytes_used + total_bytes_lost;
+// //     cout << "Struct Type: " << at_struct.name << ", Bytes allocated: " << total_bytes_allocated << " bytes, Bytes lost: " << total_bytes_lost <<endl;
 // }
 
-void print_atomic(const atomic& at, int mem_index_ptr = 0, int word_size = 4) {
+void print_atomic(const atomic& at, int word_size = 4) {
     int num_of_cells = ceil(at.size / word_size) * word_size;
 
     if (num_of_cells == 0){
@@ -189,6 +268,11 @@ void push_struct(map<string, atomic_type>& arr, const string& name, vector<strin
     atomic_type at;
     at.kind = STRUCT;
     at.at = atomic_struct{name, fields};
+    atomic_struct* at_struct = &(get<atomic_struct>(at.at));
+    int size = calc_size_struct(get<atomic_struct>(at.at));
+    int align = calc_align_struct(get<atomic_struct>(at.at));
+    at_struct->size = size;
+    at_struct->align = align;
     arr[name] = at;
 }
 
@@ -201,6 +285,11 @@ void push_union(map<string, atomic_type>& arr, const string& name, vector<string
     atomic_type at;
     at.kind = UNION;
     at.at = atomic_union{name, fields};
+    atomic_union * at_union = &(get<atomic_union>(at.at));
+    int size = calc_size_union(get<atomic_union>(at.at));
+    int align = calc_align_union(get<atomic_union>(at.at));
+    at_union->size = size;
+    at_union->align = align;
     arr[name] = at;
 }
 
@@ -245,7 +334,8 @@ for (const auto& [key, type] : types_arr) {
                 for (const auto& f : s.fields) {
                     cout << f << " ";
                 }
-                cout << "\n";
+                cout << "\n  Size: " << s.size << " bytes" << endl;
+                cout << "  Align: " << s.align << " bytes" << endl;
                 break;
             }
 
@@ -256,7 +346,8 @@ for (const auto& [key, type] : types_arr) {
                 for (const auto& f : u.fields) {
                     cout << f << " ";
                 }
-                cout << "\n";
+                cout << "\n  Size: " << u.size << " bytes" << endl;
+                cout << "  Align: " << u.align << " bytes" << endl;
                 break;
             }
         }
@@ -404,7 +495,7 @@ int main() {
                     switch (type.kind) {
                         case ATOMIC: {
                             const atomic& a = get<atomic>(type.at);
-                            print_atomic(a, 0, word_size);
+                            print_atomic(a, word_size);
                             break;
                         }
 
