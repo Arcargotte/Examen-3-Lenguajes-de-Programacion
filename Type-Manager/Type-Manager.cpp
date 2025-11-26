@@ -234,36 +234,59 @@ vector<int> print_struct_wt_packing_aux(const atomic_struct& at_struct, vector<i
     bytes[2] = bytes[0] + bytes[1];
 
     return bytes;
+}
 
-//     for (const auto& field_name : at_struct.fields) {
-//         cout << "Processing field: " << field_name << endl;
-//         atomic obj = atomic_types[field_name];
-//         cout << "Field size: " << obj.size << endl;
-//         cout << "Apuntando a: " << mem_index_ptr << endl;
-//         if (mem_index_ptr % obj.align == 0) {
-//             cout << "Eureka. Aqui es alineable" << endl;
-            
-//             total_bytes_used += obj.size;
+vector<int> print_struct_w_packing_aux(const atomic_struct& at_struct, vector<int>& mem_arr, int& mem_index_ptr, vector<int>& bytes) {
 
-//             mem_index_ptr += obj.size;
-//             cout << "BYTES USADOS HASTA AHORA: " << total_bytes_used << endl;
-            
-//         } else {
-//             while (mem_index_ptr % obj.align != 0) {
-//                 mem_index_ptr++;
-//                 total_bytes_lost++;
-//             }
-//             cout << "Podemos alinear aqui: " << mem_index_ptr << endl;
-//             total_bytes_used += obj.size;
+    for (const auto& field_name : at_struct.fields) {
+        if (types_arr[field_name].kind == ATOMIC){
+            atomic type = get<atomic>(types_arr[field_name].at);
+            int i = 0;
+            while (i < type.size){
+                mem_arr.push_back(1);
+                bytes[0]++;
+                mem_index_ptr++;
+                i++;
+            }
+        } 
+        else if (types_arr[field_name].kind == STRUCT) {
+            atomic_struct type = get<atomic_struct>(types_arr[field_name].at);
+            bytes = print_struct_w_packing_aux(type, mem_arr, mem_index_ptr, bytes);
+        } else if (types_arr[field_name].kind == UNION) {
+            atomic_union type = get<atomic_union>(types_arr[field_name].at);
+            int i = 0;
+            while (i < type.size){
+                mem_arr.push_back(1);
+                bytes[0]++;
+                mem_index_ptr++;
+                i++;
+            }
+        }
+    }
+    bytes[2] = bytes[0] + bytes[1];
 
-//             mem_index_ptr += obj.size;
-//             cout << "Quedamos apuntando a: " << mem_index_ptr << endl;
-//             cout << "BYTES USADOS HASTA AHORA: " << total_bytes_used << endl;
-//             cout << "BYTES PERDIDOS HASTA AHORA: " << total_bytes_lost << endl;
-//         }
-//     }
-//     total_bytes_allocated = total_bytes_used + total_bytes_lost;
-//     cout << "Struct Type: " << at_struct.name << ", Bytes allocated: " << total_bytes_allocated << " bytes, Bytes lost: " << total_bytes_lost <<endl;
+    return bytes;
+}
+
+void print_struct_w_packing(const atomic_struct& at_struct, int word_size = 4){
+    vector<int> mem_arr = {};
+    int mem_index_ptr = 0;
+    vector<int> bytes_init = {0, 0, 0};
+    vector<int> bytes = print_struct_w_packing_aux(at_struct, mem_arr, mem_index_ptr, bytes_init);
+
+    cout << "Memory Layout Diagram (each '1' represents a byte):";
+    for (int i = 0; i < mem_arr.size(); i++) {
+        if (i % word_size == 0) {
+            cout << "\n" << i << " | " << mem_arr[i] << " ";
+        } else if (i + 1 % word_size == 0) {
+            cout << mem_arr[i] <<" |" << endl;
+        } else {
+            cout << mem_arr[i] <<" ";
+        }
+    }
+
+    cout << endl;
+    cout << "Struct Type: " << at_struct.name << ", Bytes allocated: " << bytes[2] << " bytes, Bytes lost: " << bytes[1] <<endl;
 }
 
 void print_struct_wt_packing(const atomic_struct& at_struct, int word_size = 4){
@@ -599,7 +622,11 @@ int main() {
                         }
                         case STRUCT: {
                             const atomic_struct& s = get<atomic_struct>(type.at);
+                            cout << "Estrategia sin empaquetado: " << endl;
                             print_struct_wt_packing(s, word_size);
+                            cout << "Estrategia con empaquetado: " << endl;
+                            print_struct_w_packing(s, word_size);
+                            cout << "Estrategia con heuristica de reordenamiento: " << endl;
                             break;
                         }
 
