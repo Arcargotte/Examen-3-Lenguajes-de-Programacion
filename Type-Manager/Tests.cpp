@@ -170,7 +170,23 @@ TEST_CASE("collect_struct_fields aplana structs anidados") {
     CHECK(std::find(acc.begin(), acc.end(), "short") != acc.end());
 }
 
-TEST_CASE("sort_struct_fields_by_alignment ordena por align descendente") {
+TEST_CASE("sort_struct_fields_by_alignment ordena tipos simples por align descendente") {
+    setup_basic_atomics();
+    // crea 3 atomics con diferentes align (ya definidos arriba)
+    // struct test { char, int, short } -> alins: 1,4,2 => orden esperado: int, short, char
+    push_struct(types_arr, "T", vector<string>{"char","int","short"});
+    const atomic_struct &t = get<atomic_struct>(types_arr["T"].at);
+
+    vector<string> out_init;
+    vector<string> sorted = sort_struct_fields_by_alignment(t, out_init);
+
+    REQUIRE(sorted.size() == 3);
+    CHECK(sorted[0] == "int");
+    CHECK(sorted[1] == "short");
+    CHECK(sorted[2] == "char");
+}
+
+TEST_CASE("sort_struct_fields_by_alignment ordena tipos compuestos por align descendente") {
     setup_basic_atomics();
     // crea 3 atomics con diferentes align (ya definidos arriba)
     // struct test { char, int, short } -> alins: 1,4,2 => orden esperado: int, short, char
@@ -217,6 +233,7 @@ TEST_CASE("print_mem_layout_diagram no crashea y formatea índices") {
     CHECK(true); // si llegamos acá está ok
 }
 
+
 TEST_CASE("print_atomic y print_union no crashean") {
     aatomic a{"mydouble", 8, 8};
     print_atomic(a, 4);
@@ -227,7 +244,40 @@ TEST_CASE("print_atomic y print_union no crashean") {
     CHECK(true);
 }
 
-TEST_CASE("print_struct_w_packing funciona") {
+TEST_CASE("print_struct_w_packing funciona con tipos simples") {
+    setup_basic_atomics();
+    push_struct(types_arr, "S2", vector<string>{"char","int","short"});
+    const atomic_struct &s2 = get<atomic_struct>(types_arr["S2"].at);
+
+    // packing y no-packing: llamamos para que no crasheen
+    print_struct_w_packing(s2, 4);
+
+    CHECK(true);
+}
+
+TEST_CASE("print_struct_wt_packing funciona con tipos simples") {
+    setup_basic_atomics();
+    push_struct(types_arr, "S2", vector<string>{"char","int","short"});
+    const atomic_struct &s2 = get<atomic_struct>(types_arr["S2"].at);
+
+    // packing y no-packing: llamamos para que no crasheen
+    print_struct_wt_packing(s2, 4);
+
+    CHECK(true);
+}
+
+TEST_CASE("print_struct_heuristics funciona con tipos simples") {
+    setup_basic_atomics();
+    push_struct(types_arr, "S2", vector<string>{"char","int","short"});
+    const atomic_struct &s2 = get<atomic_struct>(types_arr["S2"].at);
+
+    // packing y no-packing: llamamos para que no crasheen
+    print_struct_heuristics(s2, 4);
+
+    CHECK(true);
+}
+
+TEST_CASE("print_struct_w_packing funciona con tipos compuestos") {
     setup_basic_atomics();
     push_struct(types_arr, "MyStruct1", {"int", "char", "char", "int", "double", "bool"});
     push_union(types_arr, "MyUnion1", {"int", "double"});
@@ -240,7 +290,7 @@ TEST_CASE("print_struct_w_packing funciona") {
     CHECK(true);
 }
 
-TEST_CASE("print_struct_wt_packing funciona") {
+TEST_CASE("print_struct_wt_packing funciona con tipos compuestos") {
     setup_basic_atomics();
     push_struct(types_arr, "MyStruct1", {"int", "char", "char", "int", "double", "bool"});
     push_union(types_arr, "MyUnion1", {"int", "double"});
@@ -253,7 +303,7 @@ TEST_CASE("print_struct_wt_packing funciona") {
     CHECK(true);
 }
 
-TEST_CASE("print_struct_heuristics funciona") {
+TEST_CASE("print_struct_heuristics funciona con tipos compuestos") {
     setup_basic_atomics();
     push_struct(types_arr, "MyStruct1", {"int", "char", "char", "int", "double", "bool"});
     push_union(types_arr, "MyUnion1", {"int", "double"});
