@@ -12,7 +12,7 @@ void setup_basic_atomics() {
     push_atomic(types_arr, "long", 8, 8);
     push_atomic(types_arr, "float", 4, 4);
     push_atomic(types_arr, "double", 8, 8);
-    push_atomic(types_arr, "bool", 1, 1);
+    push_atomic(types_arr, "bool", 1, 2);
 }
 
 TEST_CASE("push_atomic crea tipos atomicos correctos") {
@@ -24,6 +24,92 @@ TEST_CASE("push_atomic crea tipos atomicos correctos") {
     CHECK(a.name == "mychar");
     CHECK(a.size == 1);
     CHECK(a.align == 1);
+}
+
+TEST_CASE("push_struct crea tipos structs planos correctos") {
+    types_arr.clear();
+    setup_basic_atomics();
+    push_struct(types_arr, "MyStruct1", {"int", "char", "char", "int", "double", "bool"});
+    atomic_struct s = get<atomic_struct>(types_arr["MyStruct1"].at);
+    CHECK(s.name == "MyStruct1");
+    CHECK(s.size == 19);
+    CHECK(s.align == 4);
+}
+
+TEST_CASE("push_struct crea tipos structs compuestos correctos") {
+    types_arr.clear();
+    setup_basic_atomics();
+    push_struct(types_arr, "MyStruct1", {"int", "char", "char", "int", "double", "bool"});
+    push_struct(types_arr, "MyStruct2", {"MyStruct1", "bool", "char"});
+    atomic_struct s = get<atomic_struct>(types_arr["MyStruct2"].at);
+    CHECK(s.name == "MyStruct2");
+    CHECK(s.size == 21);
+    CHECK(s.align == 4);
+}
+
+TEST_CASE("push_struct impide tipos recursivos") {
+    types_arr.clear();
+    setup_basic_atomics();
+    CHECK_THROWS_AS(
+        push_struct(types_arr, "MyStruct1",
+            {"int", "char", "char", "int", "double", "bool", "MyStruct1"}
+        ),
+        std::runtime_error
+    );
+}
+
+TEST_CASE("push_union crea tipos union planos correctos") {
+    types_arr.clear();
+    setup_basic_atomics();
+    push_union(types_arr, "MyUnion1", {"int", "char", "char", "int", "double", "bool"});
+    atomic_union s = get<atomic_union>(types_arr["MyUnion1"].at);
+    CHECK(s.name == "MyUnion1");
+    CHECK(s.size == 8);
+    CHECK(s.align == 8);
+}
+
+TEST_CASE("push_union crea tipos union compuestos correctos") {
+    types_arr.clear();
+    setup_basic_atomics();
+    push_union(types_arr, "MyUnion1", {"int", "char", "char", "int", "double", "bool"});
+    push_union(types_arr, "MyUnion2", {"MyUnion1", "bool", "char"});
+    atomic_union s = get<atomic_union>(types_arr["MyUnion2"].at);
+    CHECK(s.name == "MyUnion2");
+    CHECK(s.size == 8);
+    CHECK(s.align == 8);
+}
+
+TEST_CASE("push_union impide tipos recursivos") {
+    types_arr.clear();
+    setup_basic_atomics();
+    CHECK_THROWS_AS(
+        push_union(types_arr, "MyUnion1",
+            {"int", "char", "char", "int", "double", "bool", "MyUnion1"}
+        ),
+        std::runtime_error
+    );
+}
+
+TEST_CASE("push_struct puede crear strucs con unions anidados correctamente") {
+    types_arr.clear();
+    setup_basic_atomics();
+    push_union(types_arr, "MyUnion1", {"int", "char", "char", "int", "double", "bool"});
+    push_struct(types_arr, "MyStruct1", {"MyUnion1"});
+    atomic_struct s = get<atomic_struct>(types_arr["MyStruct1"].at);
+    CHECK(s.name == "MyStruct1");
+    CHECK(s.size == 8);
+    CHECK(s.align == 8);
+}
+
+TEST_CASE("push_union puede crear unions con structs anidados correctamente") {
+    types_arr.clear();
+    setup_basic_atomics();
+    push_struct(types_arr, "MyStruct1", {"int", "char", "char", "int", "double", "bool"});
+    push_union(types_arr, "MyUnion1", {"MyStruct1"});
+    atomic_union s = get<atomic_union>(types_arr["MyUnion1"].at);
+    CHECK(s.name == "MyUnion1");
+    CHECK(s.size == 19);
+    CHECK(s.align == 4);
 }
 
 TEST_CASE("push_struct y calc_size/align_struct funcionan") {
@@ -88,16 +174,23 @@ TEST_CASE("sort_struct_fields_by_alignment ordena por align descendente") {
     setup_basic_atomics();
     // crea 3 atomics con diferentes align (ya definidos arriba)
     // struct test { char, int, short } -> alins: 1,4,2 => orden esperado: int, short, char
-    push_struct(types_arr, "T", vector<string>{"char","int","short"});
+    push_struct(types_arr, "MyStruct1", {"int", "char", "char", "int", "double", "bool"});
+    push_union(types_arr, "MyUnion1", {"int", "double"});
+    push_struct(types_arr, "T", vector<string>{"char","MyStruct1","MyUnion1"});
     const atomic_struct &t = get<atomic_struct>(types_arr["T"].at);
 
     vector<string> out_init;
     vector<string> sorted = sort_struct_fields_by_alignment(t, out_init);
 
-    REQUIRE(sorted.size() == 3);
-    CHECK(sorted[0] == "int");
-    CHECK(sorted[1] == "short");
-    CHECK(sorted[2] == "char");
+    REQUIRE(sorted.size() == 8);
+    CHECK(sorted[0] == "double");
+    CHECK(sorted[1] == "MyUnion1");
+    CHECK(sorted[2] == "int");
+    CHECK(sorted[3] == "int");
+    CHECK(sorted[4] == "bool");
+    CHECK(sorted[5] == "char");
+    CHECK(sorted[6] == "char");
+    CHECK(sorted[7] == "char");
 }
 
 TEST_CASE("split tokeniza correctamente") {
@@ -134,14 +227,41 @@ TEST_CASE("print_atomic y print_union no crashean") {
     CHECK(true);
 }
 
-TEST_CASE("print_struct_w_packing y variants auxiliares funcionan") {
+TEST_CASE("print_struct_w_packing funciona") {
     setup_basic_atomics();
-    push_struct(types_arr, "S2", vector<string>{"char","int","short"});
+    push_struct(types_arr, "MyStruct1", {"int", "char", "char", "int", "double", "bool"});
+    push_union(types_arr, "MyUnion1", {"int", "double"});
+    push_struct(types_arr, "S2", vector<string>{"char","MyStruct1","MyUnion1"});
     const atomic_struct &s2 = get<atomic_struct>(types_arr["S2"].at);
 
     // packing y no-packing: llamamos para que no crasheen
     print_struct_w_packing(s2, 4);
+
+    CHECK(true);
+}
+
+TEST_CASE("print_struct_wt_packing funciona") {
+    setup_basic_atomics();
+    push_struct(types_arr, "MyStruct1", {"int", "char", "char", "int", "double", "bool"});
+    push_union(types_arr, "MyUnion1", {"int", "double"});
+    push_struct(types_arr, "S2", vector<string>{"char","MyStruct1","MyUnion1"});
+    const atomic_struct &s2 = get<atomic_struct>(types_arr["S2"].at);
+
+    // packing y no-packing: llamamos para que no crasheen
     print_struct_wt_packing(s2, 4);
+
+    CHECK(true);
+}
+
+TEST_CASE("print_struct_heuristics funciona") {
+    setup_basic_atomics();
+    push_struct(types_arr, "MyStruct1", {"int", "char", "char", "int", "double", "bool"});
+    push_union(types_arr, "MyUnion1", {"int", "double"});
+    push_struct(types_arr, "S2", vector<string>{"char","MyStruct1","MyUnion1"});
+    const atomic_struct &s2 = get<atomic_struct>(types_arr["S2"].at);
+
+    // packing y no-packing: llamamos para que no crasheen
+
     print_struct_heuristics(s2, 4);
 
     CHECK(true);
@@ -151,12 +271,11 @@ TEST_CASE("print_struct_heuristics_aux retorna conteo consistente") {
     setup_basic_atomics();
     vector<string> fields = {"int","char"};
     vector<int> mem_arr;
-    int mem_ptr = 0;
+    long unsigned int mem_ptr = 0;
     vector<int> bytes = {0,0,0};
     vector<int> res = print_struct_heuristics_aux(fields, mem_arr, mem_ptr, bytes);
     // bytes[2] debe ser suma de usados y lost (>= used)
     CHECK(res[2] >= res[0]);
-    CHECK(mem_ptr == (int)mem_arr.size());
 }
 
 TEST_CASE("calc_size/align para structs y unions compuestos") {
@@ -197,6 +316,6 @@ TEST_CASE("print_types itera e imprime sin fallar") {
     setup_basic_atomics();
     push_struct(types_arr, "StructForPrint", {"int","char"});
     push_union(types_arr, "UnionForPrint", {"int","short"});
-    print_types(types_arr);
+    print_types();
     CHECK(true);
 }

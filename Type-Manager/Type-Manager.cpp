@@ -194,7 +194,7 @@ int main() {
                 cout << "Saliendo del programa." << endl;
                 return 0;
             case 6:
-                print_types(types_arr);
+                print_types();
                 break;
             default:
                 cout << "Error: unknown command." << endl;

@@ -51,21 +51,21 @@ struct atomic_type {
     variant<aatomic, atomic_struct, atomic_union> at;
 };
 
-// map<string, atomic_type> types_arr = {
-//     { "char",   { ATOMIC, atomic{"char",   1, 1} }},
-//     { "short",  { ATOMIC, atomic{"short",  2, 2} }},
-//     { "int",    { ATOMIC, atomic{"int",    4, 4} }},
-//     { "long",   { ATOMIC, atomic{"long",   8, 8} }},
-//     { "float",  { ATOMIC, atomic{"float",  4, 4} }},
-//     { "double", { ATOMIC, atomic{"double", 8, 8} }},
-//     { "bool",   { ATOMIC, atomic{"bool",   1, 2} }},
-//     {"MyStruct1", {STRUCT, atomic_struct{"MyStruct1", {"int", "char", "char", "int", "double", "bool"}, 19, 4}}},
-//     {"MyStruct2", {STRUCT, atomic_struct{"MyStruct2", {"short", "float", "char", "long"}, 15, 2}}},
-//     {"Union1", {UNION, atomic_union{"MyUnion1", {"double", "bool", "int"}, 8, 8}}},
-//     {"Union2", {UNION, atomic_union{"MyUnion2", {"Union1", "MyStruct2"}, 15, 8}}}
-// };
+// map<string, atomic_type> types_arr = {};
 
-map<string, atomic_type> types_arr = {};
+map<string, atomic_type> types_arr = {
+    { "char",   { ATOMIC, aatomic{"char",   1, 1} }},
+    { "short",  { ATOMIC, aatomic{"short",  2, 2} }},
+    { "int",    { ATOMIC, aatomic{"int",    4, 4} }},
+    { "long",   { ATOMIC, aatomic{"long",   8, 8} }},
+    { "float",  { ATOMIC, aatomic{"float",  4, 4} }},
+    { "double", { ATOMIC, aatomic{"double", 8, 8} }},
+    { "bool",   { ATOMIC, aatomic{"bool",   1, 2} }},
+    {"MyStruct1", {STRUCT, atomic_struct{"MyStruct1", {"int", "char", "char", "int", "double", "bool"}, 19, 4}}},
+    {"MyStruct2", {STRUCT, atomic_struct{"MyStruct2", {"short", "float", "char", "long"}, 15, 2}}},
+    {"Union1", {UNION, atomic_union{"MyUnion1", {"double", "bool", "int"}, 8, 8}}},
+    {"Union2", {UNION, atomic_union{"MyUnion2", {"Union1", "MyStruct2"}, 15, 8}}}
+};
 
 //DECLARACIONES
 int calc_size_union (const atomic_union& at_union);
@@ -84,7 +84,7 @@ void print_mem_layout_diagram(const vector<int>& mem_arr, int word_size = 4) {
     
     cout << " Memory Layout Diagram (each '1' represents a byte):";
 
-    for (int i = 0; i < mem_arr.size(); i++) {
+    for (long unsigned int i = 0; i < mem_arr.size(); i++) {
 
         string idx = to_string(i);
         while (idx.size() < 3) idx = " " + idx;
@@ -170,68 +170,110 @@ vector<string> sort_struct_fields_by_alignment(const atomic_struct& at_struct, v
 /**
  * Auxiliary function to print_struct_heuristics.
  * 
+ * Determines whether n bytes can be allocated from mem_index_ptr in array of memory.
+ * 
+ * @param n num of bytes to allocate.
+ * @param mem_index_ptr pointer of memory position.
+ * @param mem_arr array of memory.
+ * @return true if n bytes can be allocated from mem_index_ptr. Return false otherwise
+ */
+bool can_allocate_n_bytes (int n, long unsigned int mem_index_ptr, vector<int>& mem_arr) {
+
+    if (mem_arr.size() == 0){
+        return true;
+    }
+
+    int i = n;
+
+    while (mem_arr[mem_index_ptr] != 1 && i > 0 && mem_index_ptr < mem_arr.size()){
+        mem_index_ptr++;
+        i--;
+    }
+
+    if (mem_arr[mem_index_ptr] == 1 && i > 0){
+        return false;
+    } else if (mem_index_ptr >= mem_arr.size()){
+
+        return true;
+    }
+
+    return true;
+}
+
+/**
+ * Auxiliary function to print_struct_heuristics.
+ * 
  * Builds the mem_arr for memory layout using the heuristic and keeps the number of bytes allocated
  * 
  * @param at_struct Struct type.
  * @param fields Contains the atomic fields of the struct.
  * @return vector of integers. bytes[0] contains the num of active bytes, bytes[1] contains the num of wasted bytes to alignment, bytes[2] contains the total number of bytes occupied
  */
-vector<int> print_struct_heuristics_aux(vector<string> fields, vector<int>& mem_arr, int& mem_index_ptr, vector<int>& bytes) {
+vector<int> print_struct_heuristics_aux(vector<string> fields, vector<int>& mem_arr, long unsigned int& mem_index_ptr, vector<int>& bytes) {
 
     for (const auto& field_name : fields) {
+        bool is_allocated = false;
         if (types_arr[field_name].kind == ATOMIC){
             aatomic type = get<aatomic>(types_arr[field_name].at);
 
-            if (mem_index_ptr % type.align == 0) {
-                int i = 0;
-                while (i < type.size){
-                    mem_arr.push_back(1);
-                    bytes[0]++;
-                    mem_index_ptr++;
-                    i++;
+            while (!is_allocated){
+                if (mem_index_ptr % type.align == 0 && can_allocate_n_bytes(type.size, mem_index_ptr, mem_arr)) {
+                    int i = 0;
+                    while (i < type.size){
+                        if (mem_index_ptr < mem_arr.size()){
+                            mem_arr[mem_index_ptr] = 1;
+                        } else {
+                            mem_arr.push_back(1);
+                        }
+                        bytes[0]++;
+                        mem_index_ptr++;
+                        i++;
+                    }
+                    is_allocated = true;
+                    mem_index_ptr = 0;
                 }
-            } else {
-                int i = 0;
-                while (mem_index_ptr % type.align != 0){
+
+                if (mem_index_ptr < mem_arr.size()){
+                    mem_index_ptr++;
+                } else {
                     mem_arr.push_back(0);
-                    bytes[1]++;
-                    mem_index_ptr++;
-                }
-                i = 0;
-                while (i < type.size){
-                    mem_arr.push_back(1);
-                    bytes[0]++;
-                    mem_index_ptr++;
-                    i++;
                 }
             }
         } else if (types_arr[field_name].kind == UNION) {
             atomic_union type = get<atomic_union>(types_arr[field_name].at);
-            if (mem_index_ptr % type.align == 0) {
-                int i = 0;
-                while (i < type.size){
-                    mem_arr.push_back(1);
-                    bytes[0]++;
-                    mem_index_ptr++;
-                    i++;
+
+            while (!is_allocated){
+                if (mem_index_ptr % type.align == 0 && can_allocate_n_bytes(type.size, mem_index_ptr, mem_arr)) {
+                    int i = 0;
+                    while (i < type.size){
+                        if (mem_index_ptr < mem_arr.size()){
+                            mem_arr[mem_index_ptr] = 1;
+                        } else {
+                            mem_arr.push_back(1);
+                        }
+                        bytes[0]++;
+                        mem_index_ptr++;
+                        i++;
+                    }
+                    is_allocated = true;
+                    mem_index_ptr = 0;
                 }
-            } else {
-                int i = 0;
-                while (mem_index_ptr % type.align != 0){
+
+                if (mem_index_ptr < mem_arr.size()){
+                    mem_index_ptr++;
+                } else {
                     mem_arr.push_back(0);
-                    bytes[1]++;
-                    mem_index_ptr++;
-                }
-                i = 0;
-                while (i < type.size){
-                    mem_arr.push_back(1);
-                    bytes[0]++;
-                    mem_index_ptr++;
-                    i++;
                 }
             }
         }
     }
+
+    for (const auto& cell : mem_arr) {
+        if (cell == 0){
+            bytes[1]++;
+        }
+    }
+
     bytes[2] = bytes[0] + bytes[1];
 
     return bytes;
@@ -252,7 +294,7 @@ void print_struct_heuristics(const atomic_struct& at_struct, int word_size = 4) 
     vector<string> fields = sort_struct_fields_by_alignment(at_struct, init);
 
     vector<int> mem_arr = {};
-    int mem_index_ptr = 0;
+    long unsigned int mem_index_ptr = 0;
     vector<int> bytes_init = {0, 0, 0};
     vector<int> bytes = print_struct_heuristics_aux(fields, mem_arr, mem_index_ptr, bytes_init);
 
@@ -660,8 +702,8 @@ bool is_integer(const string& s) {
  * 
  * @param types Map of types.
  */
-void print_types(const map<string, atomic_type>& types) {
-for (const auto& [key, type] : types_arr) {
+void print_types() {
+    for (const auto& [key, type] : types_arr) {
         cout << "Type name: " << key << endl;
 
         switch (type.kind) {

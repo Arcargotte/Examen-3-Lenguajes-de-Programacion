@@ -29,8 +29,18 @@ tests: $(TEST_OBJ)
 
 coverage: tests
 	./Tests
-	lcov --capture --directory . --output-file coverage.info
-	genhtml coverage.info --output-directory coverage-report
+
+	# Captura cobertura SOLO de tu proyecto
+	lcov --capture --directory . --output-file coverage.info \
+	     --rc branch_coverage=1 \
+	     --ignore-errors mismatch \
+	     --exclude '/usr/*' \
+	     --exclude '/doctest.h' \
+
+	# Genera HTML
+	genhtml coverage.info --output-directory coverage-report \
+	     --rc branch_coverage=1
+
 
 clean:
 	rm -f *.o Type-Manager Tests coverage.info
