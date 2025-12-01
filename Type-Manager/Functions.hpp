@@ -51,21 +51,21 @@ struct atomic_type {
     variant<aatomic, atomic_struct, atomic_union> at;
 };
 
-// map<string, atomic_type> types_arr = {};
+map<string, atomic_type> types_arr = {};
 
-map<string, atomic_type> types_arr = {
-    { "char",   { ATOMIC, aatomic{"char",   1, 1} }},
-    { "short",  { ATOMIC, aatomic{"short",  2, 2} }},
-    { "int",    { ATOMIC, aatomic{"int",    4, 4} }},
-    { "long",   { ATOMIC, aatomic{"long",   8, 8} }},
-    { "float",  { ATOMIC, aatomic{"float",  4, 4} }},
-    { "double", { ATOMIC, aatomic{"double", 8, 8} }},
-    { "bool",   { ATOMIC, aatomic{"bool",   1, 2} }},
-    {"MyStruct1", {STRUCT, atomic_struct{"MyStruct1", {"int", "char", "char", "int", "double", "bool"}, 19, 4}}},
-    {"MyStruct2", {STRUCT, atomic_struct{"MyStruct2", {"short", "float", "char", "long"}, 15, 2}}},
-    {"Union1", {UNION, atomic_union{"MyUnion1", {"double", "bool", "int"}, 8, 8}}},
-    {"Union2", {UNION, atomic_union{"MyUnion2", {"Union1", "MyStruct2"}, 15, 8}}}
-};
+// map<string, atomic_type> types_arr = {
+//     { "char",   { ATOMIC, aatomic{"char",   1, 1} }},
+//     { "short",  { ATOMIC, aatomic{"short",  2, 2} }},
+//     { "int",    { ATOMIC, aatomic{"int",    4, 4} }},
+//     { "long",   { ATOMIC, aatomic{"long",   8, 8} }},
+//     { "float",  { ATOMIC, aatomic{"float",  4, 4} }},
+//     { "double", { ATOMIC, aatomic{"double", 8, 8} }},
+//     { "bool",   { ATOMIC, aatomic{"bool",   1, 2} }},
+//     {"MyStruct1", {STRUCT, atomic_struct{"MyStruct1", {"int", "char", "char", "int", "double", "bool"}, 19, 4}}},
+//     {"MyStruct2", {STRUCT, atomic_struct{"MyStruct2", {"short", "float", "char", "long"}, 15, 2}}},
+//     {"Union1", {UNION, atomic_union{"MyUnion1", {"double", "bool", "int"}, 8, 8}}},
+//     {"Union2", {UNION, atomic_union{"MyUnion2", {"Union1", "MyStruct2"}, 15, 8}}}
+// };
 
 //DECLARACIONES
 int calc_size_union (const atomic_union& at_union);
@@ -82,6 +82,7 @@ int calc_align_struct (const atomic_struct& at_struct);
  */
 void print_mem_layout_diagram(const vector<int>& mem_arr, int word_size = 4) {
     
+    cout << " - - - - - - - - - - - -" << endl;
     cout << " Memory Layout Diagram (each '1' represents a byte):";
 
     for (long unsigned int i = 0; i < mem_arr.size(); i++) {
@@ -101,7 +102,7 @@ void print_mem_layout_diagram(const vector<int>& mem_arr, int word_size = 4) {
     }
 
     cout << endl;
-    cout << " - - -" << endl;
+    cout << " - - - - - - - - - - - -" << endl;
 }
 
 /**

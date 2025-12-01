@@ -10,21 +10,6 @@
 #include <numeric>
 #include "Functions.hpp"
 
-// map<string, atomic_type> types_arr = {
-//     { "char",   { ATOMIC, atomic{"char",   1, 1} }},
-//     { "short",  { ATOMIC, atomic{"short",  2, 2} }},
-//     { "int",    { ATOMIC, atomic{"int",    4, 4} }},
-//     { "long",   { ATOMIC, atomic{"long",   8, 8} }},
-//     { "float",  { ATOMIC, atomic{"float",  4, 4} }},
-//     { "double", { ATOMIC, atomic{"double", 8, 8} }},
-//     { "bool",   { ATOMIC, atomic{"bool",   1, 2} }},
-//     {"MyStruct1", {STRUCT, atomic_struct{"MyStruct1", {"int", "char", "char", "int", "double", "bool"}, 19, 4}}},
-//     {"MyStruct2", {STRUCT, atomic_struct{"MyStruct2", {"short", "float", "char", "long"}, 15, 2}}},
-//     {"Union1", {UNION, atomic_union{"MyUnion1", {"double", "bool", "int"}, 8, 8}}},
-//     {"Union2", {UNION, atomic_union{"MyUnion2", {"Union1", "MyStruct2"}, 15, 8}}}
-// };
-
-
 int main() {
     string line;
     int word_size = 4; // Tamaño de palabra en bytes (32 bits)
